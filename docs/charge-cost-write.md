@@ -54,7 +54,7 @@ The feature is **disabled by default**. Without `ENABLE_COST_WRITE=true` and a v
    ```yaml
    services:
      teslamateapi:
-       image: teslamateapi:cost-write # built from this repository, see below
+       image: ghcr.io/bastelbert/teslamateapi:cost-write # image of this fork, see below
        restart: always
        depends_on:
          - database
@@ -76,11 +76,13 @@ The feature is **disabled by default**. Without `ENABLE_COST_WRITE=true` and a v
          - 8080:8080
    ```
 
-   The upstream image `tobiasehlert/teslamateapi` does not contain this feature. Build the image from this repository:
+   The upstream image `tobiasehlert/teslamateapi` does not contain this feature. The workflow [fork-image.yml](../.github/workflows/fork-image.yml) of this fork runs the tests and pushes `ghcr.io/<owner>/teslamateapi` (`latest`, `cost-write`, `sha-<commit>`, linux/amd64) on every change of `main`. One-time setup on GitHub:
 
-   ```bash
-   docker build -t teslamateapi:cost-write .
-   ```
+   - Actions tab of the fork: enable workflows, then disable the upstream workflows `build` (needs Docker Hub secrets) and `CodeQL` (optional).
+   - Run `fork-image` once (Actions → fork-image → Run workflow).
+   - Package settings (Profile → Packages → teslamateapi → Package settings): set visibility to public, or log in to `ghcr.io` with a token that has `read:packages` on the Docker host.
+
+   Alternatively build locally with `docker build -t teslamateapi:cost-write .`.
 
 5. Check the log after the start. You should see `charge cost endpoints enabled (currency EUR, own database role: true)`. If the configuration is incomplete, every problem is logged as `[error] initChargeCostWrite - …` and the endpoints stay disabled while the rest of the API keeps working.
 
