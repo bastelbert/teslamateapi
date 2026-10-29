@@ -21,7 +21,7 @@ The feature is **disabled by default**. Without `ENABLE_COST_WRITE=true` and a v
 - Idempotency: every write has a client generated `request_id` (UUID). Repeating the identical request returns the identical response (with header `Idempotent-Replayed: true`) and writes nothing. The same `request_id` with other data fails with `409`.
 - Atomic: one transaction locks the charging process (`SELECT … FOR UPDATE`), checks everything, updates the cost and inserts an audit entry. If the audit entry cannot be written, the cost change is rolled back.
 - Audit trail: every change and every undo is stored in `teslamateapi_audit.charge_cost_changes`. The table is created by the operator with [sql/charge_cost_audit.sql](../sql/charge_cost_audit.sql), the API never creates or migrates anything.
-- Schema guard: before every request the API checks that `charging_processes` still has `id`, `car_id` (integer), `end_date` (timestamp) and `cost` (numeric with at least two decimals). If TeslaMate changes its schema, the endpoints answer `503` instead of writing.
+- Schema guard: before every request the API checks that `charging_processes` still has `id` and `car_id` as `smallint`, `integer` or `bigint`, `end_date` as `timestamp` or `timestamptz`, and `cost` as `numeric` without precision or with at least two decimal places (e.g. `numeric(6,2)` or `numeric(14,2)`). If TeslaMate changes its schema, the endpoints answer `503 schema_unsupported` instead of writing.
 
 ## Security information
 
@@ -150,7 +150,7 @@ curl -X PUT -H "Authorization: Bearer $COST_WRITE_TOKEN" -H "Content-Type: appli
 | `cost`          | string         | Required. `^(0\|[1-9][0-9]{0,5})(\.[0-9]{1,2})?$`, i.e. 0 to 999999.99, no exponent, no separators. |
 | `currency`      | string         | Required. Has to equal `COST_CURRENCY`.                                             |
 
-TeslaMate stores the cost as `numeric(6,2)`, so values from 10000 upwards are rejected by the database with `422` even though the API format allows them.
+The API limit is 999999.99. The database may be stricter, depending on the precision of `charging_processes.cost` in your installation: with `numeric(6,2)` values from 10000 upwards are rejected by the database and answered with `422 invalid_amount` (nothing is written). With `numeric(14,2)` (e.g. TeslaMate 4.4.0) only the API limit applies. Check your column type with `\d charging_processes` in `psql`.
 
 Response (`200`), the stored audit entry:
 
@@ -230,7 +230,7 @@ Error responses never contain SQL details or tokens, details are in the TeslaMat
 
 ## Compatibility with TeslaMate
 
-TeslaMate does not guarantee a stable database schema. This feature only relies on `charging_processes.id`, `car_id`, `end_date` and `cost` and refuses to write if their types differ (see the schema guard above). It was tested against a synthetic schema that mirrors TeslaMate's `charging_processes` (`cost numeric(6,2)`, `end_date timestamp`), not against a real TeslaMate installation. TeslaMate itself sets the cost when a charge completes (if the geofence has a cost configured), which is why only completed charges can be changed. If the cost is edited later in TeslaMate's UI, `confirmed` becomes `null` and an undo of the previous API change fails with `changed_externally`.
+TeslaMate does not guarantee a stable database schema. This feature only relies on `charging_processes.id`, `car_id`, `end_date` and `cost` and refuses to write if their types differ (see the schema guard above). Accepted types: `id`/`car_id` `smallint`, `integer` or `bigint`; `end_date` `timestamp` or `timestamptz`; `cost` `numeric` without precision or with a scale of at least 2. A TeslaMate 4.4.0 database, for example, has `car_id smallint` and `cost numeric(14,2)`. The automated tests use a synthetic schema with `car_id smallint`, `end_date timestamp` and `cost numeric(6,2)` (plus one variant with `numeric(10,4)` and `timestamptz`), not a real TeslaMate installation. TeslaMate itself sets the cost when a charge completes (if the geofence has a cost configured), which is why only completed charges can be changed. If the cost is edited later in TeslaMate's UI, `confirmed` becomes `null` and an undo of the previous API change fails with `changed_externally`.
 
 ## Tests
 
