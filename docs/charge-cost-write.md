@@ -176,6 +176,15 @@ Amounts in responses always have two decimals (`"12.3"` is stored and returned a
 
 Reverts the change `:RequestID` (the `request_id` of a previous set or undo). Only the **latest** change of a charging process can be undone, and only if the current cost still equals `expected_cost` and the value written by that change. Undoing an undo restores the undone value again.
 
+The request needs `Content-Type: application/json` and a JSON body, like PUT. The path contains the `request_id` of the change to revert; the body contains a **new** `request_id` for the undo itself:
+
+| Field           | Type           | Description                                                                                          |
+| --------------- | -------------- | ---------------------------------------------------------------------------------------------------- |
+| `request_id`    | string (UUID)  | Required. New UUID for this undo, reuse it only to repeat the identical undo.                       |
+| `expected_cost` | string or null | Required (the key has to be present). The current cost, as returned by GET; `null` if no cost is set. |
+
+No other fields are allowed (`400`).
+
 ```bash
 curl -X POST -H "Authorization: Bearer $COST_WRITE_TOKEN" -H "Content-Type: application/json" \
   -d '{"request_id":"7b2e9d41-5c3a-4f8e-a6d1-93c0e8f2b754","expected_cost":"12.34"}' \
@@ -198,6 +207,27 @@ curl -X POST -H "Authorization: Bearer $COST_WRITE_TOKEN" -H "Content-Type: appl
 }
 ```
 
+Repeating the identical undo returns the same body with header `Idempotent-Replayed: true`.
+
+Errors specific to undo (all codes in [Errors](#errors)):
+
+| Status | `code`                   | When                                                                                                    |
+| ------ | ------------------------ | ------------------------------------------------------------------------------------------------------- |
+| 415    | `unsupported_media_type` | `Content-Type` missing or not `application/json` (e.g. `curl -d` without `-H "Content-Type: application/json"` sends `application/x-www-form-urlencoded`). |
+| 404    | `change_not_found`       | `:RequestID` is not a UUID or no such change exists.                                                   |
+| 409    | `not_latest_change`      | A newer change of the same charge exists; only the latest one can be undone.                          |
+| 409    | `cost_conflict`          | `expected_cost` differs from the current cost; `current_cost` is part of the response.                 |
+| 409    | `changed_externally`     | Current cost equals `expected_cost` but no longer the value written by the change (edited outside the API); `current_cost` is part of the response. |
+| 409    | `request_id_reused`      | The body `request_id` was already used with different data (e.g. it is the `request_id` of the change itself). |
+| 422    | `invalid_request`        | `expected_cost` key missing.                                                                            |
+| 422    | `invalid_request_id`     | Body `request_id` is not a UUID.                                                                        |
+
+Example without `Content-Type` header:
+
+```json
+{ "code": "unsupported_media_type", "error": "Content-Type has to be application/json" }
+```
+
 ## Errors
 
 | Status | `code`                                   | Meaning                                                                                  |
@@ -209,12 +239,13 @@ curl -X POST -H "Authorization: Bearer $COST_WRITE_TOKEN" -H "Content-Type: appl
 | 409    | `cost_conflict`                          | `expected_cost` differs from the current cost, `current_cost` is part of the response.  |
 | 409    | `request_id_reused`                      | `request_id` was already used with different data.                                      |
 | 409    | `not_latest_change`                      | Undo of a change that is not the latest change of the charge.                           |
-| 409    | `changed_externally`                     | Undo not possible, the cost was changed outside of this API (e.g. in TeslaMate).        |
+| 409    | `changed_externally`                     | Undo not possible, the cost was changed outside of this API (e.g. in TeslaMate), `current_cost` is part of the response. |
 | 413    | `body_too_large`                         | Body larger than 4 KiB.                                                                  |
 | 415    | `unsupported_media_type`                 | `Content-Type` is not `application/json`.                                                |
 | 422    | `invalid_amount`                         | Amount not a valid decimal string, `cost` is `null`, or too large for TeslaMate's column. |
 | 422    | `invalid_currency`                       | Currency differs from `COST_CURRENCY`.                                                   |
 | 422    | `invalid_request_id`                     | `request_id` is not a UUID.                                                              |
+| 422    | `invalid_request`                        | `expected_cost` key missing (send `null` if no cost is set).                            |
 | 422    | `charge_not_completed`                   | Charging process has no `end_date` yet.                                                  |
 | 503    | `audit_unavailable`                      | Audit table missing, not accessible or the audit entry could not be written.            |
 | 503    | `schema_unsupported`                     | `charging_processes` does not have the expected columns and types.                     |
