@@ -23,6 +23,7 @@ TeslaMateApi is a RESTful API to get data collected by self-hosted data logger *
   - [Available endpoints](#available-endpoints)
   - [Authentication](#authentication)
   - [Commands](#commands)
+  - [Charge cost write](#charge-cost-write)
 - [Security information](#security-information)
 - [Credits](#credits)
 
@@ -138,6 +139,16 @@ Basically the same environment variables for the database, mqqt and timezone nee
 | **COMMANDS_ALERT**          | boolean | _false_           |
 | **COMMANDS_REMOTESTART**    | boolean | _false_           |
 | **COMMANDS_HOMELINK**       | boolean | _false_           |
+
+**Charge cost write** environment variables (see [docs/charge-cost-write.md](docs/charge-cost-write.md))
+
+| Variable               | Type    | Default                 |
+| ---------------------- | ------- | ----------------------- |
+| **ENABLE_COST_WRITE**  | boolean | _false_                 |
+| **COST_WRITE_TOKEN**   | string  |                         |
+| **COST_CURRENCY**      | string  |                         |
+| **COST_TESLAMATE_URL** | string  |                         |
+| **COST_DATABASE_DSN**  | string  | _DATABASE\_\* settings_ |
 | **COMMANDS_SPEEDLIMIT**     | boolean | _false_           |
 | **COMMANDS_VALET**          | boolean | _false_           |
 | **COMMANDS_SENTRYMODE**     | boolean | _false_           |
@@ -170,6 +181,9 @@ More detailed documentation of every endpoint will come..
     - `location` (optional, filter by location name or address)
 - GET `/api/v1/cars/:CarID/charges/current`
 - GET `/api/v1/cars/:CarID/charges/:ChargeID`
+- GET `/api/v1/cars/:CarID/charges/:ChargeID/cost` (only with `ENABLE_COST_WRITE=true`)
+- PUT `/api/v1/cars/:CarID/charges/:ChargeID/cost` (only with `ENABLE_COST_WRITE=true`)
+- POST `/api/v1/changes/:RequestID/undo` (only with `ENABLE_COST_WRITE=true`)
 - GET `/api/v1/cars/:CarID/command`
 - POST `/api/v1/cars/:CarID/command/:Command`
 - GET `/api/v1/cars/:CarID/drives`
@@ -228,6 +242,12 @@ A list of possible commands can be found under [environment variables](#environm
 
 Regarding what fields you need to provide in the commands, we will referr to the [timdorr/tesla-api](https://tesla-api.timdorr.com/vehicle/commands) documentation.
 
+### Charge cost write
+
+Writing the cost of completed charges to TeslaMate is disabled by default. With `ENABLE_COST_WRITE=true` the cost endpoints are registered. They use their own token (`COST_WRITE_TOKEN`, not `API_TOKEN`), need an audit table created by [sql/charge_cost_audit.sql](sql/charge_cost_audit.sql) and only change `charging_processes.cost`.
+
+Setup, endpoints, examples and error codes are described in [docs/charge-cost-write.md](docs/charge-cost-write.md).
+
 ## Security information
 
 There is **no** possibility to get access to your Tesla account tokens by this API and we'll keep it this way!
@@ -237,6 +257,8 @@ The data that is accessible is data like the cars, charges, drives, current stat
 Also, apply some authentication on your webserver in front of the container, so your data is not unprotected and too exposed. In the example above, we use the same .htpasswd file as used by TeslaMate.
 
 If you have applied a level of authentication in front of the container `API_TOKEN_DISABLE=true` will allow commands without requiring the header or uri token value. But even then it's always rekommended to use an apikey.
+
+The optional [charge cost write](#charge-cost-write) endpoints are the only endpoints that change data in the TeslaMate database (only `charging_processes.cost`). They always require `COST_WRITE_TOKEN`, `API_TOKEN_DISABLE` does not apply to them.
 
 ## Credits
 

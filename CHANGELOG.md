@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- feat: optional charge cost write endpoints (`GET`/`PUT /api/v1/cars/:CarID/charges/:ChargeID/cost`, `POST /api/v1/changes/:RequestID/undo`) with audit trail, disabled by default (`ENABLE_COST_WRITE`)
+
 ## [1.25.0] - 2026-07-07
 
 ### Added

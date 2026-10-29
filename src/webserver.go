@@ -167,6 +167,9 @@ func main() {
 
 			// v1 /api/v1/globalsettings endpoints
 			v1.GET("/globalsettings", TeslaMateAPIGlobalsettingsV1)
+
+			// v1 charge cost endpoints (only registered with ENABLE_COST_WRITE=true)
+			initChargeCostWrite(v1)
 		}
 
 		// /api/ping endpoint
