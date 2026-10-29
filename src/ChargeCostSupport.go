@@ -343,7 +343,7 @@ func chargeCostColumnSupported(name, typeName string, typeMod int) bool {
 	case "end_date":
 		return typeName == "timestamp" || typeName == "timestamptz"
 	case "cost":
-		// numeric without precision or with a scale of at least 2 (TeslaMate: numeric(6,2))
+		// numeric without precision or with a scale of at least 2 (e.g. numeric(6,2), TeslaMate 4.4.0: numeric(14,2))
 		return typeName == "numeric" && (typeMod == -1 || (typeMod-4)&0xffff >= 2)
 	}
 	return false
